@@ -14,38 +14,78 @@
  * Иногда промисы от API будут приходить в состояние rejected, (прямо как и API в реальной жизни)
  * Ответ будет приходить в поле {result}
  */
- import Api from '../tools/api';
 
- const api = new Api();
+import { curry, test, pipe } from 'ramda';
+import Api from '../tools/api';
 
- /**
-  * Я – пример, удали меня
-  */
- const wait = time => new Promise(resolve => {
-     setTimeout(resolve, time);
- })
+const api = new Api();
 
- const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-     /**
-      * Я – пример, удали меня
-      */
-     writeLog(value);
+const validateInput = (value) => {
+    const inputStr = String(value);
+    const numberPattern = /^[0-9]+(\.[0-9]*)?$/;
+    const isNumber = test(numberPattern, inputStr);
+    const len = inputStr.length;
+    const num = parseFloat(inputStr);
+    
+    return isNumber &&
+           len > 2 &&
+           len < 10 &&
+           num > 0;
+};
 
-     api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-         writeLog(result);
-     });
+const logAndReturn = curry((writeLog, value) => {
+    writeLog(value);
+    return value;
+});
 
-     wait(2500).then(() => {
-         writeLog('SecondLog')
+const roundNumber = pipe(parseFloat, Math.round);
+const getLength = (str) => str.length;
+const square = (num) => num * num;
+const modulo3 = (num) => num % 3;
 
-         return wait(1500);
-     }).then(() => {
-         writeLog('ThirdLog');
-
-         return wait(400);
-     }).then(() => {
-         handleSuccess('Done');
-     });
- }
+const processSequence = ({ value, writeLog, handleSuccess, handleError }) => {
+    const log = logAndReturn(writeLog);
+    
+    try {
+        log(value);
+        
+        if (!validateInput(value)) {
+            handleError('ValidationError');
+            return;
+        }
+        
+        const roundedNumber = pipe(log, roundNumber)(value);
+        
+        api.get('https://api.tech/numbers/base', { 
+            from: 10, 
+            to: 2, 
+            number: roundedNumber 
+        })
+        .then(({ result }) => {
+            log(result);
+            
+            const binaryLength = getLength(result);
+            log(binaryLength);
+            
+            const squared = square(binaryLength);
+            log(squared);
+            
+            const remainder = modulo3(squared);
+            log(remainder);
+            
+            const resultId = remainder;
+            return api.get(`https://animals.tech/${resultId}`, {});
+        })
+        .then(({ result }) => {
+            handleSuccess(result);
+        })
+        .catch((error) => {
+            handleError(error);
+        });
+        
+    } catch (error) {
+        handleError('ValidationError');
+    }
+};
 
 export default processSequence;
